@@ -36,12 +36,13 @@
         // --- 1. Firebase 設定區域 (請修改這裡) ---
         // 您的網頁卡住是因為缺少這組設定。請去 Firebase Console 申請並貼上。
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyCytUit-MnTIRaVoUMWVUxa9RufRbTwd8Y",
+            authDomain: "event002-e9856.firebaseapp.com",
+            projectId: "event002-e9856",
+            storageBucket: "event002-e9856.firebasestorage.app",
+            messagingSenderId: "459721372054",
+            appId: "1:459721372054:web:ae4c3895223da9476d2db7"
+            measurementId: "G-TW4T72B3VY"
         };
         
         // 嘗試讀取環境變數 (Gemini Canvas 環境)，如果沒有則使用上方的設定
@@ -52,7 +53,7 @@
 
         // 檢查設定是否有效
         function isConfigured() {
-            return finalConfig && finalConfig.apiKey !== "YOUR_API_KEY";
+            return finalConfig && finalConfig.apiKey !== "AIzaSyCytUit-MnTIRaVoUMWVUxa9RufRbTwd8Y";
         }
 
         // --- 2. App State & Logic ---
