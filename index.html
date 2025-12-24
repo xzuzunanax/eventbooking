@@ -33,21 +33,26 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove, collection } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
-        // --- 1. Firebase Configuration & Init ---
-        // 為了方便您直接使用，這裡使用環境變數或預設值。
-        // 在真實部署時，請確保這些變數存在或替換為您的 Firebase Config。
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        // --- 1. Firebase 設定區域 (請修改這裡) ---
+        // 您的網頁卡住是因為缺少這組設定。請去 Firebase Console 申請並貼上。
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        
+        // 嘗試讀取環境變數 (Gemini Canvas 環境)，如果沒有則使用上方的設定
+        const finalConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'my-event-app';
 
         let app, auth, db, currentUser;
 
-        if (firebaseConfig) {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } else {
-            console.error("Firebase config not found. Please ensure code is running in the correct environment.");
-            document.getElementById('main-content').innerHTML = `<div class="p-8 text-center text-red-500">錯誤：無法連結資料庫。<br>請確保環境變數已設定。</div>`;
+        // 檢查設定是否有效
+        function isConfigured() {
+            return finalConfig && finalConfig.apiKey !== "YOUR_API_KEY";
         }
 
         // --- 2. App State & Logic ---
@@ -70,10 +75,17 @@
         // --- 3. Core Functions ---
 
         async function initApp() {
-            if (!auth) return;
-            
-            // 1. Authenticate anonymously
+            if (!isConfigured()) {
+                renderSetupGuide();
+                hideLoading();
+                return;
+            }
+
             try {
+                app = initializeApp(finalConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
                 await signInAnonymously(auth);
                 
                 onAuthStateChanged(auth, async (user) => {
@@ -93,8 +105,14 @@
                     }
                 });
             } catch (error) {
-                console.error("Auth failed:", error);
-                alert("連線失敗，請重試");
+                console.error("Auth/Init failed:", error);
+                // alert("連線失敗，請檢查 Console");
+                document.getElementById('main-content').innerHTML = `<div class="p-8 text-center text-red-500">
+                    <h2 class="font-bold text-xl mb-2">連線錯誤</h2>
+                    <p class="text-sm">請檢查 Firebase 設定是否正確，或是否已在 Firebase Console 開啟 Firestore 資料庫權限。</p>
+                    <pre class="bg-gray-100 p-2 mt-4 text-xs text-left overflow-auto">${error.message}</pre>
+                </div>`;
+                hideLoading();
             }
         }
 
@@ -109,8 +127,6 @@
             try {
                 // Generate a random ID manually to ensure clean URLs
                 const newEventId = Math.random().toString(36).substring(2, 8) + Date.now().toString(36).substring(4, 8);
-                const eventRef = doc(db, 'artifacts', appId, 'public', 'data', 'events_' + newEventId); // Using a unique collection namespace approach for simplicity in single collection rule
-
                 // Use the correct path structure required by the system prompt
                 // Collection: artifacts/{appId}/public/data/events
                 // Doc: {newEventId}
@@ -158,10 +174,6 @@
             state.unsubscribe = onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     state.eventData = docSnap.data();
-                    
-                    // Determine which view to show
-                    // If user is already in participants list -> Result/Calendar
-                    // Else -> Join
                     checkUserStatus();
                 } else {
                     renderNotFound();
@@ -208,8 +220,6 @@
             // Check if name already taken by someone else (not me)
             const existing = state.eventData.participants.find(p => p.name === name);
             if (existing && existing.uid !== currentUser.uid) {
-                // In this simplified app, we allow overwrite if name matches, assuming it's the same person on a different device
-                // Or we can just proceed. The requirements said "Overwrite".
                 if(!confirm(`名稱 "${name}" 已存在。這是您之前的紀錄嗎？\n點擊「確定」將載入並允許修改。\n點擊「取消」請更換名稱。`)) {
                     return;
                 }
@@ -251,10 +261,6 @@
                     selectedDates: Array.from(state.selectedDates)
                 };
 
-                // We need to update the array. 
-                // Since we can't easily update a single item in an array in Firestore without reading first,
-                // we read (which we already have in state.eventData), filter out old entry, and push new one.
-                
                 const otherParticipants = state.eventData.participants.filter(p => p.name !== state.userName);
                 const updatedParticipants = [...otherParticipants, participantData];
 
@@ -283,7 +289,6 @@
                 await updateDoc(docRef, {
                     participants: updatedParticipants
                 });
-                // Auto refresh will happen via onSnapshot
             } catch (e) {
                 alert('移除失敗');
             } finally {
@@ -300,7 +305,6 @@
         };
         window.changeMonth = (offset) => {
             state.viewDate.setMonth(state.viewDate.getMonth() + offset);
-            // If in calendar view, re-render
             if(state.view === 'calendar') renderCalendar();
             if(state.view === 'result') renderResult();
         }
@@ -309,6 +313,38 @@
 
         function showLoading() { document.getElementById('loading-overlay').classList.remove('hidden'); }
         function hideLoading() { document.getElementById('loading-overlay').classList.add('hidden'); document.getElementById('main-content').classList.remove('hidden'); }
+
+        function renderSetupGuide() {
+            document.getElementById('main-content').innerHTML = `
+                <div class="flex-1 p-8 space-y-6 overflow-y-auto">
+                    <h1 class="text-2xl font-bold text-slate-800">最後一步：設定資料庫</h1>
+                    <div class="bg-amber-50 border-l-4 border-amber-400 p-4">
+                        <p class="text-sm text-amber-700">您需要將此程式碼連結到您的 Google Firebase 才能儲存資料。</p>
+                    </div>
+                    
+                    <ol class="list-decimal pl-5 space-y-4 text-sm text-slate-600">
+                        <li>前往 <a href="https://console.firebase.google.com/" target="_blank" class="text-indigo-600 underline font-bold">Firebase Console</a> 並登入 Google 帳號。</li>
+                        <li>點擊 <strong>「建立專案」</strong> (Create a project)。</li>
+                        <li>專案建立後，在首頁點擊 <strong>「Web」</strong> 圖示 (類似 </> 的符號) 來新增應用程式。</li>
+                        <li>註冊完畢後，您會看到一段 <code>const firebaseConfig = { ... };</code> 的程式碼。</li>
+                        <li><strong>請用文字編輯器 (如記事本) 打開這個 .html 檔案</strong>，找到第 35 行左右的 <code>YOUR_API_KEY</code> 區域。</li>
+                        <li>將您的設定值貼上覆蓋。</li>
+                    </ol>
+
+                    <div class="bg-slate-800 text-slate-200 p-4 rounded-lg text-xs font-mono overflow-x-auto">
+                        // 範例：將您的檔案修改成這樣<br>
+                        const firebaseConfig = {<br>
+                        &nbsp;&nbsp;apiKey: "AIzaSyD...",<br>
+                        &nbsp;&nbsp;authDomain: "project.firebaseapp.com",<br>
+                        &nbsp;&nbsp;projectId: "project-id",<br>
+                        &nbsp;&nbsp;...<br>
+                        };
+                    </div>
+
+                    <p class="text-xs text-slate-500 mt-4">設定完成並儲存檔案後，重新整理此網頁即可開始使用！</p>
+                </div>
+            `;
+        }
 
         function renderLanding() {
             state.view = 'landing';
@@ -397,10 +433,8 @@
             maxDate.setHours(0,0,0,0);
 
             let daysHTML = '';
-            // Empty slots
             for(let i=0; i<firstDay; i++) daysHTML += `<div></div>`;
             
-            // Days
             for(let i=1; i<=daysInMonth; i++) {
                 const date = new Date(year, month, i);
                 const dateStr = formatDateKey(date);
